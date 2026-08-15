@@ -1,32 +1,61 @@
-# React + TypeScript + Vite
+# LessonEditor — Curriculum Studio
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+Frontend-only studio for authoring the `Chapter → Units → Lessons → Activities`
+curriculum structure. It imports, edits and exports the canonical JSON verbatim,
+so the exported file drops straight into the consuming app with no conversion.
 
-Currently, two official plugins are available:
-
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
-
-## React Compiler
-
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the Oxlint configuration
-
-If you are developing a production application, we recommend enabling type-aware lint rules by installing `oxlint-tsgolint` and editing `.oxlintrc.json`:
-
-```json
-{
-  "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["react", "typescript", "oxc"],
-  "options": {
-    "typeAware": true
-  },
-  "rules": {
-    "react/rules-of-hooks": "error",
-    "react/only-export-components": ["warn", { "allowConstantExport": true }]
-  }
-}
+```bash
+npm install
+npm run dev      # http://localhost:5173
+npm test         # reducer / schema / validation suite
+npm run build
 ```
 
-See the [Oxlint rules documentation](https://oxc.rs/docs/guide/usage/linter/rules) for the full list of rules and categories.
+## The JSON is the model
+
+Application state *is* the exported shape — there is no separate internal model:
+
+```
+{ "chapter": {…}, "units": [ { …, "lessonIds": ["a","b"] } ], "lessons": [ { …, "activities": [] } ] }
+```
+
+- Units reference lessons **by id**; lesson objects live only in the top-level
+  `lessons` array and are never duplicated inside a unit.
+- Optional keys (`isBoss`, `visual`, `hint`, `explanation`, `acceptableAnswers`)
+  are written **only when present** — never as `null` or `""`.
+- Unknown keys a consuming app has added survive import → edit → export
+  (`src/lib/schema.ts`, `withExtras`).
+- Export writes exactly one file, `<chapter.id>.json`, 2-space indented.
+
+## Where things live
+
+| Path | Role |
+| --- | --- |
+| `src/types/curriculum.ts` | Canonical types |
+| `src/lib/schema.ts` | Zod schemas, paste detection, serialisation |
+| `src/lib/validation.ts` | Pre-export checks (errors block, warnings don't) |
+| `src/state/store.tsx` | Reducer — every edit is a pure curriculum transform |
+| `src/components/CurriculumTree.tsx` | Tree + unit/lesson drag-and-drop |
+| `src/components/editors/` | Chapter / Unit / Lesson / Activity editors |
+| `src/components/dialogs/` | Import, Preview, Validation, Search, JSON view |
+
+## Reference integrity
+
+The reducer keeps `lessonIds` honest, so no edit can silently break a reference:
+
+- Renaming a lesson id rewrites every `lessonIds` entry that points at it.
+- Deleting a lesson removes its id from every unit.
+- Duplicating a lesson (or a unit) mints fresh unique ids, including activity ids.
+- Colliding ids are suffixed (`indexes` → `indexes-2`) rather than overwritten.
+- Reordering MCQ options remaps `answer` so it stays on its own option.
+
+These invariants are covered by `src/lib/curriculum.test.ts` (24 tests).
+
+## Keyboard
+
+`⌘K` search · `⌘Z` / `⇧⌘Z` undo-redo · `⌘I` import · `⌘S` export
+
+## Scope
+
+No backend, database, auth or cloud storage. `localStorage` holds the working
+copy between sessions; the exported `.json` is the portable source of truth.

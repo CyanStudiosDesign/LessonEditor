@@ -34,6 +34,8 @@ import { cn, pluralize } from '@/lib/utils'
 import { unitIcon } from '@/lib/icons'
 import { useLessonMap, useStudio } from '@/state/store'
 import { IconButton } from '@/components/ui/Button'
+import { InlineRename } from '@/components/InlineRename'
+import { ConfirmDialog } from '@/components/dialogs/ConfirmDialog'
 import { DeleteUnitDialog } from '@/components/dialogs/DeleteUnitDialog'
 
 type DragData =
@@ -63,12 +65,15 @@ function LessonRow({
   lesson,
   lessonId,
   unitId,
+  onRequestDelete,
 }: {
   lesson: Lesson | undefined
   lessonId: string
   unitId: string
+  onRequestDelete: (lesson: Lesson) => void
 }) {
   const { selection, dispatch } = useStudio()
+  const [renaming, setRenaming] = useState(false)
   const data: DragData = { kind: 'lesson', unitId, lessonId }
   const {
     attributes,
@@ -103,42 +108,84 @@ function LessonRow({
           <GripVertical size={13} />
         </button>
 
-        <button
-          type="button"
-          onClick={() => dispatch({ type: 'select', selection: { kind: 'lesson', lessonId } })}
-          className="flex min-w-0 flex-1 items-center gap-2 py-0.5 text-left"
-        >
-          <span className="w-5 shrink-0 text-center text-sm leading-none">
-            {lesson?.icon || '•'}
-          </span>
-          <span className="min-w-0 flex-1">
-            <span
-              className={cn(
-                'block truncate text-[13px]',
-                selected ? 'font-medium text-ink' : 'text-ink-muted',
-                !lesson && 'text-danger italic',
-              )}
+        {renaming && lesson ? (
+          <>
+            <span className="w-5 shrink-0 text-center text-sm leading-none">
+              {lesson.icon || '•'}
+            </span>
+            <InlineRename
+              value={lesson.title}
+              onCancel={() => setRenaming(false)}
+              onCommit={(title) => {
+                setRenaming(false)
+                dispatch({ type: 'updateLesson', lessonId, patch: { title } })
+              }}
+            />
+          </>
+        ) : (
+          <>
+            <button
+              type="button"
+              onClick={() =>
+                dispatch({ type: 'select', selection: { kind: 'lesson', lessonId } })
+              }
+              onDoubleClick={() => lesson && setRenaming(true)}
+              title={lesson ? 'Double-click to rename' : undefined}
+              className="flex min-w-0 flex-1 items-center gap-2 py-0.5 text-left"
             >
-              {lesson ? lesson.title : `Missing lesson: ${lessonId}`}
-            </span>
-          </span>
-          {lesson?.isBoss ? (
-            <Shield size={12} className="shrink-0 text-boss" />
-          ) : null}
-          {lesson ? (
-            <span className="shrink-0 text-[11px] tabular-nums text-ink-faint">
-              {lesson.activities.length}
-            </span>
-          ) : null}
-        </button>
+              <span className="w-5 shrink-0 text-center text-sm leading-none">
+                {lesson?.icon || '•'}
+              </span>
+              <span className="min-w-0 flex-1">
+                <span
+                  className={cn(
+                    'block truncate text-[13px]',
+                    selected ? 'font-medium text-ink' : 'text-ink-muted',
+                    !lesson && 'text-danger italic',
+                  )}
+                >
+                  {lesson ? lesson.title : `Missing lesson: ${lessonId}`}
+                </span>
+              </span>
+              {lesson?.isBoss ? (
+                <Shield size={12} className="shrink-0 text-boss" />
+              ) : null}
+              {lesson ? (
+                <span className="shrink-0 text-[11px] tabular-nums text-ink-faint group-hover/lesson:hidden">
+                  {lesson.activities.length}
+                </span>
+              ) : null}
+            </button>
 
-        <IconButton
-          label="Remove from unit"
-          className="h-6 w-6 opacity-0 group-hover/lesson:opacity-100"
-          onClick={() => dispatch({ type: 'detachLesson', lessonId, unitId })}
-        >
-          <Unlink size={12} />
-        </IconButton>
+            <div className="hidden shrink-0 items-center group-hover/lesson:flex">
+              <IconButton
+                label="Duplicate lesson"
+                className="h-6 w-6"
+                disabled={!lesson}
+                onClick={() => dispatch({ type: 'duplicateLesson', lessonId })}
+              >
+                <Copy size={11} />
+              </IconButton>
+              <IconButton
+                label="Remove from unit"
+                className="h-6 w-6"
+                onClick={() => dispatch({ type: 'detachLesson', lessonId, unitId })}
+              >
+                <Unlink size={11} />
+              </IconButton>
+              <IconButton
+                label="Delete lesson"
+                className="h-6 w-6 hover:text-danger"
+                onClick={() => {
+                  if (lesson) onRequestDelete(lesson)
+                  else dispatch({ type: 'detachLesson', lessonId, unitId })
+                }}
+              >
+                <Trash2 size={11} />
+              </IconButton>
+            </div>
+          </>
+        )}
       </div>
     </div>
   )
@@ -151,11 +198,14 @@ function LessonRow({
 function UnitBlock({
   unit,
   onRequestDelete,
+  onRequestDeleteLesson,
 }: {
   unit: Unit
   onRequestDelete: (unit: Unit) => void
+  onRequestDeleteLesson: (lesson: Lesson) => void
 }) {
   const { selection, collapsedUnits, dispatch } = useStudio()
+  const [renaming, setRenaming] = useState(false)
   const lessonMap = useLessonMap()
   const collapsed = collapsedUnits.includes(unit.id)
   const data: DragData = { kind: 'unit', unitId: unit.id }
@@ -207,29 +257,48 @@ function UnitBlock({
           {collapsed ? <ChevronRight size={14} /> : <ChevronDown size={14} />}
         </IconButton>
 
-        <button
-          type="button"
-          onClick={() =>
-            dispatch({ type: 'select', selection: { kind: 'unit', unitId: unit.id } })
-          }
-          className="flex min-w-0 flex-1 items-center gap-2 py-0.5 text-left"
-        >
-          <Icon
-            size={14}
-            className={cn('shrink-0', unit.isBoss ? 'text-boss' : 'text-accent')}
-          />
-          <span className="min-w-0 flex-1 truncate text-sm font-medium text-ink">
-            {unit.title || <span className="text-danger italic">Untitled unit</span>}
-          </span>
-          {unit.isBoss ? (
-            <span className="chip border border-boss/30 bg-boss/10 text-boss">boss</span>
-          ) : null}
-          <span className="shrink-0 text-[11px] tabular-nums text-ink-faint">
-            {unit.lessonIds.length}
-          </span>
-        </button>
+        {renaming ? (
+          <>
+            <Icon
+              size={14}
+              className={cn('shrink-0', unit.isBoss ? 'text-boss' : 'text-accent')}
+            />
+            <InlineRename
+              value={unit.title}
+              onCancel={() => setRenaming(false)}
+              onCommit={(title) => {
+                setRenaming(false)
+                dispatch({ type: 'updateUnit', unitId: unit.id, patch: { title } })
+              }}
+            />
+          </>
+        ) : (
+          <button
+            type="button"
+            onClick={() =>
+              dispatch({ type: 'select', selection: { kind: 'unit', unitId: unit.id } })
+            }
+            onDoubleClick={() => setRenaming(true)}
+            title="Double-click to rename"
+            className="flex min-w-0 flex-1 items-center gap-2 py-0.5 text-left"
+          >
+            <Icon
+              size={14}
+              className={cn('shrink-0', unit.isBoss ? 'text-boss' : 'text-accent')}
+            />
+            <span className="min-w-0 flex-1 truncate text-sm font-medium text-ink">
+              {unit.title || <span className="text-danger italic">Untitled unit</span>}
+            </span>
+            {unit.isBoss ? (
+              <span className="chip border border-boss/30 bg-boss/10 text-boss">boss</span>
+            ) : null}
+            <span className="shrink-0 text-[11px] tabular-nums text-ink-faint group-hover/unit:hidden">
+              {unit.lessonIds.length}
+            </span>
+          </button>
+        )}
 
-        <div className="flex shrink-0 items-center opacity-0 transition group-hover/unit:opacity-100">
+        <div className="hidden shrink-0 items-center group-hover/unit:flex">
           <IconButton
             label="Add lesson"
             className="h-6 w-6"
@@ -275,6 +344,7 @@ function UnitBlock({
                 unitId={unit.id}
                 lessonId={lessonId}
                 lesson={lessonMap.get(lessonId)}
+                onRequestDelete={onRequestDeleteLesson}
               />
             ))}
           </SortableContext>
@@ -302,6 +372,7 @@ export function CurriculumTree() {
   const { curriculum, selection, dispatch } = useStudio()
   const [activeDrag, setActiveDrag] = useState<DragData | null>(null)
   const [unitPendingDelete, setUnitPendingDelete] = useState<Unit | null>(null)
+  const [lessonPendingDelete, setLessonPendingDelete] = useState<Lesson | null>(null)
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
@@ -421,6 +492,7 @@ export function CurriculumTree() {
                   key={unit.id}
                   unit={unit}
                   onRequestDelete={setUnitPendingDelete}
+                  onRequestDeleteLesson={setLessonPendingDelete}
                 />
               ))}
             </div>
@@ -486,6 +558,20 @@ export function CurriculumTree() {
       <DeleteUnitDialog
         unit={unitPendingDelete}
         onClose={() => setUnitPendingDelete(null)}
+      />
+
+      <ConfirmDialog
+        open={lessonPendingDelete !== null}
+        title={`Delete “${lessonPendingDelete?.title ?? ''}”?`}
+        description="The lesson is removed from the lessons array and from every unit that references it."
+        confirmLabel="Delete lesson"
+        onCancel={() => setLessonPendingDelete(null)}
+        onConfirm={() => {
+          if (lessonPendingDelete) {
+            dispatch({ type: 'deleteLesson', lessonId: lessonPendingDelete.id })
+          }
+          setLessonPendingDelete(null)
+        }}
       />
     </div>
   )
