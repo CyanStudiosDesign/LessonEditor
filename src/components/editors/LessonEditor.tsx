@@ -16,7 +16,7 @@ import {
 } from '@dnd-kit/sortable'
 import { restrictToParentElement, restrictToVerticalAxis } from '@dnd-kit/modifiers'
 import { CSS } from '@dnd-kit/utilities'
-import { Copy, GripVertical, Play, Plus, Trash2 } from 'lucide-react'
+import { Clock, Copy, GripVertical, LayoutList, Play, Plus, Trash2 } from 'lucide-react'
 import {
   ACTIVITY_TYPES,
   ACTIVITY_TYPE_LABELS,
@@ -24,8 +24,8 @@ import {
   type ActivityType,
   type Lesson,
 } from '@/types/curriculum'
-import { cn } from '@/lib/utils'
-import { ACTIVITY_ACCENTS, ACTIVITY_ICONS } from '@/lib/icons'
+import { cn, pluralize } from '@/lib/utils'
+import { ACTIVITY_ACCENTS, ACTIVITY_ICONS, BOSS_ICON } from '@/lib/icons'
 import { useStudio } from '@/state/store'
 import {
   CheckField,
@@ -35,7 +35,15 @@ import {
   TextField,
 } from '@/components/ui/Field'
 import { Button, IconButton } from '@/components/ui/Button'
-import { EditorShell, Section } from '@/components/editors/EditorShell'
+import { EmptyState } from '@/components/ui/Modal'
+import {
+  EditorShell,
+  MenuItem,
+  MetaDot,
+  MetaItem,
+  OverflowMenu,
+  Section,
+} from '@/components/editors/EditorShell'
 import { ActivityEditor } from '@/components/editors/ActivityEditor'
 import { ConfirmDialog } from '@/components/dialogs/ConfirmDialog'
 
@@ -74,14 +82,31 @@ function ActivityRow({
       ref={setNodeRef}
       style={{ transform: CSS.Translate.toString(transform), transition }}
       className={cn(
-        'group/act flex items-center gap-2 border-b border-edge px-2 py-2 last:border-b-0',
-        isDragging && 'relative z-10 rounded-lg bg-panel-2 shadow-lg shadow-black/40',
-        selected && 'bg-accent-soft',
+        'group relative flex items-center gap-2.5 border-b border-edge-soft px-2 py-2 last:border-b-0',
+        'transition-colors duration-150',
+        isDragging
+          ? 'z-10 rounded-lg border-transparent bg-panel shadow-(--shadow-drag)'
+          : selected
+            ? 'bg-accent-soft'
+            : 'hover:bg-panel-2',
       )}
     >
+      <span
+        aria-hidden
+        className={cn(
+          'absolute top-0 bottom-0 left-0 w-[2px]',
+          selected ? 'bg-accent' : 'bg-transparent',
+        )}
+      />
+
       <button
         type="button"
-        className="cursor-grab touch-none p-1 text-ink-faint/60 hover:text-ink active:cursor-grabbing"
+        title="Drag to reorder"
+        className={cn(
+          'shrink-0 cursor-grab touch-none rounded p-0.5 text-edge-strong transition-colors duration-150',
+          'group-hover:text-ink-faint hover:!text-ink active:cursor-grabbing',
+          isDragging && 'text-ink',
+        )}
         aria-label={`Reorder ${activity.title}`}
         {...attributes}
         {...listeners}
@@ -89,13 +114,13 @@ function ActivityRow({
         <GripVertical size={14} />
       </button>
 
-      <span className="w-4 text-center text-[11px] tabular-nums text-ink-faint">
+      <span className="w-4 shrink-0 text-center text-[11.5px] tabular-nums text-ink-faint">
         {index + 1}
       </span>
 
       <button
         type="button"
-        className="flex min-w-0 flex-1 items-center gap-3 py-0.5 text-left"
+        className="flex min-w-0 flex-1 items-center gap-2.5 text-left"
         onClick={() =>
           dispatch({
             type: 'select',
@@ -112,19 +137,28 @@ function ActivityRow({
           <Icon size={14} />
         </span>
         <span className="min-w-0 flex-1">
-          <span className="block truncate text-sm text-ink">
+          <span
+            className={cn(
+              'block truncate text-[13.5px]',
+              selected ? 'font-medium text-ink' : 'text-ink',
+            )}
+          >
             {activity.title || <span className="text-danger italic">Untitled</span>}
           </span>
-          <span className="block truncate text-[11px] text-ink-faint">
-            {ACTIVITY_TYPE_LABELS[activity.type] ?? activity.type} ·{' '}
+          <span className="block truncate text-[12px] text-ink-faint">
+            <span className="text-ink-muted">
+              {ACTIVITY_TYPE_LABELS[activity.type] ?? activity.type}
+            </span>
+            {' · '}
             {activitySummary(activity) || 'No content yet'}
           </span>
         </span>
       </button>
 
-      <div className="flex shrink-0 items-center opacity-0 transition group-hover/act:opacity-100">
+      <div className="flex shrink-0 items-center opacity-0 transition-opacity duration-150 group-hover:opacity-100">
         <IconButton
           label="Duplicate activity"
+          size="sm"
           onClick={() =>
             dispatch({ type: 'duplicateActivity', lessonId, activityId: activity.id })
           }
@@ -133,7 +167,8 @@ function ActivityRow({
         </IconButton>
         <IconButton
           label="Delete activity"
-          className="hover:text-danger"
+          size="sm"
+          tone="danger"
           onClick={() =>
             dispatch({ type: 'deleteActivity', lessonId, activityId: activity.id })
           }
@@ -141,6 +176,59 @@ function ActivityRow({
           <Trash2 size={12} />
         </IconButton>
       </div>
+    </div>
+  )
+}
+
+function AddActivityMenu({ lessonId }: { lessonId: string }) {
+  const { dispatch } = useStudio()
+  const [open, setOpen] = useState(false)
+
+  return (
+    <div className="relative">
+      <Button variant="primary" onClick={() => setOpen((value) => !value)}>
+        <Plus size={14} /> Add Activity
+      </Button>
+      {open ? (
+        <>
+          <button
+            type="button"
+            aria-label="Close menu"
+            className="fixed inset-0 z-20 cursor-default"
+            onClick={() => setOpen(false)}
+          />
+          <div
+            role="menu"
+            className="animate-pop absolute right-0 z-30 mt-1.5 w-52 overflow-hidden rounded-xl border border-edge bg-panel p-1 shadow-(--shadow-pop)"
+          >
+            {ACTIVITY_TYPES.map((type: ActivityType) => {
+              const Icon = ACTIVITY_ICONS[type]
+              return (
+                <button
+                  key={type}
+                  type="button"
+                  role="menuitem"
+                  className="flex w-full items-center gap-2.5 rounded-lg px-2 py-1.5 text-left text-[13px] text-ink-muted transition-colors duration-150 hover:bg-edge-soft hover:text-ink"
+                  onClick={() => {
+                    setOpen(false)
+                    dispatch({ type: 'addActivity', lessonId, activityType: type })
+                  }}
+                >
+                  <span
+                    className={cn(
+                      'flex h-6 w-6 shrink-0 items-center justify-center rounded-md border',
+                      ACTIVITY_ACCENTS[type],
+                    )}
+                  >
+                    <Icon size={12} />
+                  </span>
+                  {ACTIVITY_TYPE_LABELS[type]}
+                </button>
+              )
+            })}
+          </div>
+        </>
+      ) : null}
     </div>
   )
 }
@@ -155,7 +243,6 @@ export function LessonEditor({
   onPreview: () => void
 }) {
   const { curriculum, dispatch } = useStudio()
-  const [addOpen, setAddOpen] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
 
   const sensors = useSensors(
@@ -180,35 +267,71 @@ export function LessonEditor({
   return (
     <EditorShell
       eyebrow={owner ? `Unit · ${owner.title}` : 'Lesson · unassigned'}
-      title={
-        <span className="flex items-center gap-2">
-          <span>{lesson.icon || '📘'}</span>
-          {lesson.title || 'Untitled lesson'}
-        </span>
+      icon={<span className="text-[20px] leading-none">{lesson.icon || '📘'}</span>}
+      title={lesson.title || 'Untitled lesson'}
+      meta={
+        <>
+          <MetaItem>
+            <span className="id-tag">{lesson.id}</span>
+          </MetaItem>
+          {lesson.skill ? (
+            <>
+              <MetaDot />
+              <MetaItem>{lesson.skill}</MetaItem>
+            </>
+          ) : null}
+          <MetaDot />
+          <MetaItem icon={<Clock size={12} />}>{lesson.estimatedMinutes} min</MetaItem>
+          <MetaDot />
+          <MetaItem icon={<LayoutList size={12} />}>
+            {pluralize(lesson.activities.length, 'activity', 'activities')}
+          </MetaItem>
+          {lesson.isBoss ? (
+            <>
+              <MetaDot />
+              <MetaItem icon={<BOSS_ICON size={12} className="text-boss" />}>
+                <span className="text-boss">Boss lesson</span>
+              </MetaItem>
+            </>
+          ) : null}
+        </>
       }
       actions={
         <>
           <Button onClick={onPreview} disabled={lesson.activities.length === 0}>
             <Play size={14} /> Preview
           </Button>
-          <Button onClick={() => dispatch({ type: 'duplicateLesson', lessonId: lesson.id })}>
-            <Copy size={14} /> Duplicate
-          </Button>
-          <Button variant="danger" onClick={() => setConfirmDelete(true)}>
-            <Trash2 size={14} /> Delete
-          </Button>
+          <OverflowMenu>
+            {(close) => (
+              <>
+                <MenuItem
+                  icon={<Copy size={14} />}
+                  onClick={() => {
+                    close()
+                    dispatch({ type: 'duplicateLesson', lessonId: lesson.id })
+                  }}
+                >
+                  Duplicate lesson
+                </MenuItem>
+                <MenuItem
+                  icon={<Trash2 size={14} />}
+                  tone="danger"
+                  onClick={() => {
+                    close()
+                    setConfirmDelete(true)
+                  }}
+                >
+                  Delete lesson
+                </MenuItem>
+              </>
+            )}
+          </OverflowMenu>
         </>
       }
     >
       <div className="grid gap-4 sm:grid-cols-2">
-        <IdField
-          value={lesson.id}
-          onCommit={(id) =>
-            dispatch({ type: 'updateLesson', lessonId: lesson.id, patch: { id } })
-          }
-          hint="Renaming rewrites every lessonIds reference."
-        />
         <TextField
+          className="sm:col-span-2"
           label="Title"
           value={lesson.title}
           onChange={(title) =>
@@ -224,40 +347,51 @@ export function LessonEditor({
             dispatch({ type: 'updateLesson', lessonId: lesson.id, patch: { description } })
           }
         />
+        <IdField
+          value={lesson.id}
+          onCommit={(id) =>
+            dispatch({ type: 'updateLesson', lessonId: lesson.id, patch: { id } })
+          }
+          hint="Renaming rewrites every lessonIds reference."
+        />
         <TextField
           label="Skill"
           value={lesson.skill}
+          placeholder="Arrays"
           onChange={(skill) =>
             dispatch({ type: 'updateLesson', lessonId: lesson.id, patch: { skill } })
           }
         />
-        <TextField
-          label="Icon"
-          value={lesson.icon}
-          placeholder="🧱"
-          onChange={(icon) =>
-            dispatch({ type: 'updateLesson', lessonId: lesson.id, patch: { icon } })
-          }
-        />
-        <NumberField
-          label="Estimated minutes"
-          min={0}
-          value={lesson.estimatedMinutes}
-          onChange={(estimatedMinutes) =>
-            dispatch({
-              type: 'updateLesson',
-              lessonId: lesson.id,
-              patch: { estimatedMinutes },
-            })
-          }
-        />
-        <NumberField
-          label="Order"
-          value={lesson.order}
-          onChange={(order) =>
-            dispatch({ type: 'updateLesson', lessonId: lesson.id, patch: { order } })
-          }
-        />
+        <div className="grid grid-cols-[1fr_1fr_5rem] gap-3 sm:col-span-2">
+          <NumberField
+            label="Estimated minutes"
+            min={0}
+            suffix="min"
+            value={lesson.estimatedMinutes}
+            onChange={(estimatedMinutes) =>
+              dispatch({
+                type: 'updateLesson',
+                lessonId: lesson.id,
+                patch: { estimatedMinutes },
+              })
+            }
+          />
+          <NumberField
+            label="Order"
+            value={lesson.order}
+            onChange={(order) =>
+              dispatch({ type: 'updateLesson', lessonId: lesson.id, patch: { order } })
+            }
+          />
+          <TextField
+            label="Icon"
+            value={lesson.icon}
+            placeholder="🧱"
+            onChange={(icon) =>
+              dispatch({ type: 'updateLesson', lessonId: lesson.id, patch: { icon } })
+            }
+          />
+        </div>
         <div className="sm:col-span-2">
           <CheckField
             label="Boss lesson"
@@ -276,46 +410,8 @@ export function LessonEditor({
 
       <Section
         title="Activities"
-        description="Order here is the exact order of the activities array."
-        actions={
-          <div className="relative">
-            <Button variant="primary" onClick={() => setAddOpen((open) => !open)}>
-              <Plus size={14} /> Add Activity
-            </Button>
-            {addOpen ? (
-              <>
-                <button
-                  type="button"
-                  aria-label="Close menu"
-                  className="fixed inset-0 z-10 cursor-default"
-                  onClick={() => setAddOpen(false)}
-                />
-                <div className="animate-pop absolute right-0 z-20 mt-1 w-52 overflow-hidden rounded-xl border border-edge bg-panel shadow-xl shadow-black/40">
-                  {ACTIVITY_TYPES.map((type: ActivityType) => {
-                    const Icon = ACTIVITY_ICONS[type]
-                    return (
-                      <button
-                        key={type}
-                        type="button"
-                        className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-ink-muted hover:bg-panel-2 hover:text-ink"
-                        onClick={() => {
-                          setAddOpen(false)
-                          dispatch({
-                            type: 'addActivity',
-                            lessonId: lesson.id,
-                            activityType: type,
-                          })
-                        }}
-                      >
-                        <Icon size={14} /> {ACTIVITY_TYPE_LABELS[type]}
-                      </button>
-                    )
-                  })}
-                </div>
-              </>
-            ) : null}
-          </div>
-        }
+        description="This order is the exact order of the activities array."
+        actions={<AddActivityMenu lessonId={lesson.id} />}
       >
         <div className="card overflow-hidden">
           <DndContext
@@ -341,17 +437,23 @@ export function LessonEditor({
           </DndContext>
 
           {lesson.activities.length === 0 ? (
-            <p className="px-4 py-8 text-center text-sm text-ink-faint">
-              No activities yet. Add one, or paste JSON with Import.
-            </p>
+            <EmptyState
+              icon={<LayoutList size={17} />}
+              title="No activities yet"
+              description="Add an explanation, question or exercise — or paste JSON with Import."
+            />
           ) : null}
         </div>
       </Section>
 
       {selectedActivity ? (
-        <Section title={`Editing · ${ACTIVITY_TYPE_LABELS[selectedActivity.type]}`}>
+        <Section title="Edit activity">
           <ActivityEditor lessonId={lesson.id} activity={selectedActivity} />
         </Section>
+      ) : lesson.activities.length > 0 ? (
+        <p className="mt-3 text-center text-[12.5px] text-ink-faint">
+          Select an activity above to edit it.
+        </p>
       ) : null}
 
       <ConfirmDialog

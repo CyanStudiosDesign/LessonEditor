@@ -40,6 +40,24 @@ Application state *is* the exported shape — there is no separate internal mode
 | `src/components/editors/` | Chapter / Unit / Lesson / Activity editors |
 | `src/components/dialogs/` | Import, Preview, Validation, Search, JSON view |
 
+## Design system
+
+Light, dense, borders-before-shadows. It lives in four files — change these
+rather than restyling individual screens:
+
+| Path | Role |
+| --- | --- |
+| `src/index.css` | Colour / type / elevation tokens and the `btn`, `field-*`, `card`, `row` classes |
+| `src/components/ui/Button.tsx` | `primary` · `outline` · `ghost` · `danger` · `danger-solid`, plus `IconButton` |
+| `src/components/ui/Field.tsx` | `TextField` `TextAreaField` `NumberField` `SelectField` `IdField` `CheckField` |
+| `src/components/ui/Modal.tsx` | Dialog chrome and the shared `EmptyState` |
+
+Colour is semantic and sparing: indigo for chapter and selection, blue for
+units, one muted hue per activity type — all defined once in `src/lib/icons.tsx`
+(`ACTIVITY_ICONS`, `ACTIVITY_ACCENTS`, `ACTIVITY_INK`) and used only for small
+icons, badges and 2px indicators, never to flood a panel. Type is Geist,
+self-hosted via `@fontsource-variable`, with Geist Mono for ids and JSON.
+
 ## Reference integrity
 
 The reducer keeps `lessonIds` honest, so no edit can silently break a reference:

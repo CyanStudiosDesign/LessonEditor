@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { MousePointerSquareDashed } from 'lucide-react'
+import { FileQuestionMark } from 'lucide-react'
 import { StudioProvider, useSelectedLesson, useStudio } from '@/state/store'
 import { validateCurriculum } from '@/lib/validation'
 import { downloadCurriculum } from '@/lib/download'
+import { Button } from '@/components/ui/Button'
+import { EmptyState } from '@/components/ui/Modal'
 import { TopBar } from '@/components/TopBar'
 import { CurriculumTree } from '@/components/CurriculumTree'
 import { ChapterEditor } from '@/components/editors/ChapterEditor'
@@ -81,19 +83,19 @@ function Workspace() {
         onViewJson={() => setDialog('json')}
       />
 
-      <div className="grid min-h-0 flex-1 grid-cols-1 grid-rows-[14rem_1fr] md:grid-cols-[minmax(260px,320px)_1fr] md:grid-rows-1">
-        <aside className="min-h-0 border-b border-edge bg-panel/60 md:border-r md:border-b-0">
+      <div className="grid min-h-0 flex-1 grid-cols-1 grid-rows-[15rem_1fr] md:grid-cols-[288px_1fr] md:grid-rows-1 xl:grid-cols-[312px_1fr]">
+        <aside className="min-h-0 border-b border-edge bg-sidebar md:border-r md:border-b-0">
           <CurriculumTree />
         </aside>
 
-        <main className="min-h-0 overflow-y-auto">
+        <main className="min-h-0 overflow-y-auto bg-canvas">
           {selection.kind === 'chapter' ? <ChapterEditor /> : null}
 
           {selection.kind === 'unit' ? (
             selectedUnit ? (
               <UnitEditor unit={selectedUnit} />
             ) : (
-              <EmptyState message="That unit no longer exists." />
+              <MissingState message="That unit no longer exists." />
             )
           ) : null}
 
@@ -107,7 +109,7 @@ function Workspace() {
                 onPreview={() => setDialog('preview')}
               />
             ) : (
-              <EmptyState message="That lesson no longer exists." />
+              <MissingState message="That lesson no longer exists." />
             )
           ) : null}
         </main>
@@ -134,11 +136,23 @@ function Workspace() {
   )
 }
 
-function EmptyState({ message }: { message: string }) {
+/** Shown when a selection points at something that has since been removed. */
+function MissingState({ message }: { message: string }) {
+  const { dispatch } = useStudio()
   return (
-    <div className="flex h-full flex-col items-center justify-center gap-2 text-ink-faint">
-      <MousePointerSquareDashed size={22} />
-      <p className="text-sm">{message}</p>
+    <div className="dot-grid flex h-full items-center justify-center">
+      <EmptyState
+        icon={<FileQuestionMark size={18} />}
+        title={message}
+        description="It may have been deleted or renamed."
+        action={
+          <Button
+            onClick={() => dispatch({ type: 'select', selection: { kind: 'chapter' } })}
+          >
+            Back to chapter
+          </Button>
+        }
+      />
     </div>
   )
 }

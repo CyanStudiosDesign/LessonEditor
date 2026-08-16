@@ -1,25 +1,78 @@
+@import '@fontsource-variable/geist';
+@import '@fontsource-variable/geist-mono';
 @import 'tailwindcss';
 
-@theme {
-  --color-canvas: #0a0d14;
-  --color-panel: #111725;
-  --color-panel-2: #161e2f;
-  --color-edge: #212b3f;
-  --color-edge-soft: #1a2233;
-  --color-ink: #e8ecf5;
-  --color-ink-muted: #93a1bb;
-  --color-ink-faint: #64748b;
-  --color-accent: #7c8cff;
-  --color-accent-soft: #232a4d;
-  --color-boss: #f0a35e;
-  --color-danger: #f2717f;
-  --color-success: #5fd3a0;
+/* ------------------------------------------------------------------ *
+ * Design tokens
+ *
+ * Light productivity-tool palette. Every surface, border and text colour
+ * in the app resolves through one of these — components should not
+ * hardcode hex values.
+ * ------------------------------------------------------------------ */
 
+@theme {
+  /* Surfaces */
+  --color-canvas: #f7f8fa;
+  --color-panel: #ffffff;
+  --color-panel-2: #f8fafc;
+  --color-sidebar: #fbfbfc;
+
+  /* Borders */
+  --color-edge: #e4e6eb;
+  --color-edge-soft: #eef0f4;
+  --color-edge-strong: #d4d7de;
+
+  /* Text */
+  --color-ink: #18181b;
+  --color-ink-muted: #52525b;
+  --color-ink-faint: #8a8f98;
+
+  /* Primary accent */
+  --color-accent: #5b5bd6;
+  --color-accent-hover: #4f4fc4;
+  --color-accent-soft: #eef0fe;
+  --color-accent-ring: #c7cbf8;
+
+  /* Status */
+  --color-danger: #dc2626;
+  --color-danger-soft: #fef2f2;
+  --color-success: #16a34a;
+  --color-success-soft: #f0fdf4;
+  --color-warning: #d97706;
+  --color-warning-soft: #fffbeb;
+
+  /* Semantic entity colours — used for small icons, badges and stripes
+     only, never to flood a panel. */
+  --color-chapter: #5b5bd6;
+  --color-unit: #2563eb;
+  --color-lesson: #64748b;
+  --color-boss: #ea7c1f;
+  --color-boss-soft: #fff5eb;
+
+  /* Activity types */
+  --color-act-explanation: #2563eb;
+  --color-act-explanation-soft: #eff6ff;
+  --color-act-choice: #b45309;
+  --color-act-choice-soft: #fffbeb;
+  --color-act-truefalse: #15803d;
+  --color-act-truefalse-soft: #f0fdf4;
+  --color-act-fillblank: #7c3aed;
+  --color-act-fillblank-soft: #f5f3ff;
+
+  /* Type */
   --font-sans:
-    'Inter var', 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI',
-    sans-serif;
+    'Geist Variable', 'Inter', ui-sans-serif, system-ui, -apple-system,
+    'Segoe UI', sans-serif;
   --font-mono:
-    ui-monospace, 'SF Mono', 'JetBrains Mono', Menlo, Consolas, monospace;
+    'Geist Mono Variable', ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+
+  /* Elevation — borders first, shadows only for floating surfaces. */
+  --shadow-pop:
+    0 1px 2px rgb(24 24 27 / 0.04), 0 8px 24px -6px rgb(24 24 27 / 0.12);
+  --shadow-modal:
+    0 2px 4px rgb(24 24 27 / 0.04), 0 16px 48px -12px rgb(24 24 27 / 0.18);
+  --shadow-drag:
+    0 1px 2px rgb(24 24 27 / 0.06), 0 6px 16px -4px rgb(24 24 27 / 0.14);
 }
 
 html,
@@ -33,12 +86,21 @@ body {
   background: var(--color-canvas);
   color: var(--color-ink);
   font-family: var(--font-sans);
+  font-feature-settings: 'cv11';
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Consistent focus treatment across every interactive element. */
+:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 1px;
+  border-radius: 6px;
 }
 
 * {
   scrollbar-width: thin;
-  scrollbar-color: var(--color-edge) transparent;
+  scrollbar-color: #d3d6dd transparent;
 }
 
 ::-webkit-scrollbar {
@@ -46,74 +108,190 @@ body {
   height: 10px;
 }
 ::-webkit-scrollbar-thumb {
-  background: var(--color-edge);
+  background: #d3d6dd;
   border-radius: 999px;
   border: 3px solid transparent;
   background-clip: padding-box;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #bcc0c9;
+  background-clip: padding-box;
+  border: 3px solid transparent;
 }
 ::-webkit-scrollbar-track {
   background: transparent;
 }
 
-/* Registered as a real utility so the button variants can @apply it. */
+/* ------------------------------------------------------------------ *
+ * Shared utilities
+ * ------------------------------------------------------------------ */
+
+/* Registered as real utilities so component classes can @apply them. */
 @utility btn {
-  @apply inline-flex items-center justify-center gap-1.5 rounded-lg border border-transparent
-    px-3 py-1.5 text-sm font-medium whitespace-nowrap transition
+  @apply inline-flex h-8 items-center justify-center gap-1.5 rounded-lg border
+    border-transparent px-2.5 text-[13px] font-medium whitespace-nowrap
+    transition-[background-color,border-color,color,box-shadow] duration-150
     disabled:pointer-events-none disabled:opacity-40;
 }
 
+/* A tree / list row: flat by default, tinted on hover, accented when selected. */
+@utility row {
+  @apply flex items-center gap-1.5 rounded-md transition-colors duration-150;
+}
+
 @layer components {
+  /* ---- forms ---- */
+
   .field-label {
-    @apply mb-1.5 block text-[11px] font-semibold tracking-[0.08em] text-ink-faint uppercase;
+    @apply mb-1.5 block text-[12px] font-medium text-ink-muted;
+  }
+
+  .field-eyebrow {
+    @apply text-[11px] font-semibold tracking-[0.06em] text-ink-faint uppercase;
   }
 
   .field-input {
-    @apply w-full rounded-lg border border-edge bg-panel-2 px-3 py-2 text-sm text-ink
-      placeholder:text-ink-faint/70
-      focus:border-accent/70 focus:ring-2 focus:ring-accent/25 focus:outline-none;
+    @apply h-9 w-full rounded-lg border border-edge bg-panel px-3 text-[13.5px] text-ink
+      transition-[border-color,box-shadow] duration-150
+      placeholder:text-ink-faint
+      hover:border-edge-strong
+      focus:border-accent focus:ring-[3px] focus:ring-accent-ring/50 focus:outline-none;
+  }
+
+  /* Textareas need auto height + vertical padding the fixed-height rule skips. */
+  .field-input-area {
+    @apply h-auto resize-y py-2 leading-relaxed;
   }
 
   .field-input-mono {
-    @apply font-mono text-[13px];
+    @apply font-mono text-[12.5px] tracking-tight;
   }
 
+  /* ---- buttons ---- */
+
   .btn-ghost {
-    @apply btn text-ink-muted hover:bg-panel-2 hover:text-ink;
+    @apply btn text-ink-muted hover:bg-edge-soft hover:text-ink;
   }
 
   .btn-outline {
-    @apply btn border-edge bg-panel-2 text-ink hover:border-edge/80 hover:bg-edge-soft;
+    @apply btn border-edge bg-panel text-ink shadow-[0_1px_1px_rgb(24_24_27/0.03)]
+      hover:border-edge-strong hover:bg-panel-2;
   }
 
   .btn-primary {
-    @apply btn bg-accent text-canvas hover:bg-accent/90;
+    @apply btn bg-accent text-white shadow-[0_1px_2px_rgb(24_24_27/0.12)]
+      hover:bg-accent-hover;
   }
 
   .btn-danger {
-    @apply btn border-danger/30 bg-danger/10 text-danger hover:bg-danger/20;
+    @apply btn border-edge bg-panel text-danger hover:border-danger/30 hover:bg-danger-soft;
   }
+
+  /* Solid red is reserved for the confirming action inside a destructive dialog. */
+  .btn-danger-solid {
+    @apply btn bg-danger text-white shadow-[0_1px_2px_rgb(24_24_27/0.12)] hover:bg-danger/90;
+  }
+
+  /* ---- surfaces ---- */
 
   .card {
     @apply rounded-xl border border-edge bg-panel;
   }
 
   .chip {
-    @apply inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] font-semibold
-      tracking-wide uppercase;
+    @apply inline-flex items-center gap-1 rounded-md px-1.5 py-px text-[10.5px]
+      font-semibold tracking-[0.02em] uppercase;
+  }
+
+  /* Small monospace id pill used next to titles. */
+  .id-tag {
+    @apply rounded border border-edge bg-panel-2 px-1.5 py-px font-mono text-[11.5px]
+      text-ink-faint;
+  }
+
+  /* Section divider inside editors — quieter than a card border. */
+  .rule {
+    @apply border-t border-edge-soft;
   }
 }
 
-@keyframes studio-pop {
+/* ------------------------------------------------------------------ *
+ * Motion — restrained, 150ms, no scale/bounce on ordinary UI.
+ * ------------------------------------------------------------------ */
+
+@keyframes pop-in {
   from {
     opacity: 0;
-    transform: translateY(6px) scale(0.99);
+    transform: translateY(4px);
   }
   to {
     opacity: 1;
-    transform: translateY(0) scale(1);
+    transform: translateY(0);
+  }
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
   }
 }
 
 .animate-pop {
-  animation: studio-pop 140ms ease-out;
+  animation: pop-in 150ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.animate-fade {
+  animation: fade-in 150ms ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-pop,
+  .animate-fade {
+    animation: none;
+  }
+}
+
+/* ------------------------------------------------------------------ *
+ * Cyan UI TreeView — connector lines
+ *
+ * Each branch draws one vertical guide at the indent of its parent row;
+ * `--tree-guide-left` is set inline per level by TreeFolder.
+ * ------------------------------------------------------------------ */
+
+.tree-view {
+  --tree-line-color: var(--color-edge-strong);
+  --tree-line-active: var(--color-accent);
+}
+
+.tree-view-branch {
+  position: relative;
+}
+
+.tree-view-branch::before {
+  content: '';
+  position: absolute;
+  left: var(--tree-guide-left, 13px);
+  top: 0;
+  bottom: 4px;
+  width: 1px;
+  background: var(--tree-line-color);
+  transition: background-color 150ms ease;
+}
+
+/* The guide brightens while its branch is a drop target. */
+.tree-view-branch[data-drop-active='true']::before {
+  background: var(--tree-line-active);
+}
+
+.tree-view-row {
+  position: relative;
+}
+
+/* Faint dot grid — reserved for large empty states only. */
+.dot-grid {
+  background-image: radial-gradient(circle, #d9dce2 1px, transparent 1px);
+  background-size: 16px 16px;
 }

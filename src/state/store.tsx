@@ -607,9 +607,15 @@ export function StudioProvider({ children }: { children: ReactNode }) {
   const [state, dispatch] = useReducer(studioReducer, undefined, initState)
   const timer = useRef<number | undefined>(undefined)
 
-  /* Debounced local persistence. */
+  /*
+   * Debounced local persistence.
+   *
+   * Runs for UI state too (selection, collapsed units) so the workspace is
+   * restored exactly as it was left — but only a curriculum edit clears the
+   * dirty flag, so the "Saving…" indicator still tracks content, not
+   * navigation.
+   */
   useEffect(() => {
-    if (state.saved) return
     window.clearTimeout(timer.current)
     const revision = state.revision
     timer.current = window.setTimeout(() => {
@@ -618,7 +624,7 @@ export function StudioProvider({ children }: { children: ReactNode }) {
         selection: state.selection,
         collapsedUnits: state.collapsedUnits,
       })
-      dispatch({ type: 'markSaved', revision })
+      if (!state.saved) dispatch({ type: 'markSaved', revision })
     }, 500)
     return () => window.clearTimeout(timer.current)
   }, [state.curriculum, state.selection, state.collapsedUnits, state.revision, state.saved])

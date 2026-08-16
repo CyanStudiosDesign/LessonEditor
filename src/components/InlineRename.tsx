@@ -35,8 +35,10 @@ export function InlineRename({
       ref={ref}
       value={draft}
       spellCheck={false}
+      aria-label="Rename"
       className={cn(
-        'min-w-0 flex-1 rounded-md border border-accent/60 bg-canvas px-1.5 py-0.5 text-[13px] text-ink focus:outline-none',
+        'min-w-0 flex-1 rounded border border-accent bg-panel px-1.5 py-0.5 text-[13px] text-ink',
+        'ring-[3px] ring-accent-ring/50 outline-none',
         className,
       )}
       onChange={(event) => setDraft(event.target.value)}

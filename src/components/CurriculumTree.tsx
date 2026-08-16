@@ -5,6 +5,7 @@ import {
   KeyboardSensor,
   PointerSensor,
   closestCenter,
+  useDroppable,
   useSensor,
   useSensors,
   type DragEndEvent,
@@ -17,22 +18,12 @@ import {
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { useDroppable } from '@dnd-kit/core'
-import {
-  ChevronDown,
-  ChevronRight,
-  Copy,
-  GripVertical,
-  Layers,
-  Plus,
-  Shield,
-  Trash2,
-  Unlink,
-} from 'lucide-react'
+import { Copy, GripVertical, Plus, Trash2, Unlink } from 'lucide-react'
 import type { Lesson, Selection, Unit } from '@/types/curriculum'
 import { cn, pluralize } from '@/lib/utils'
-import { unitIcon } from '@/lib/icons'
+import { BOSS_ICON, CHAPTER_ICON, LESSON_ICON, unitIcon } from '@/lib/icons'
 import { useLessonMap, useStudio } from '@/state/store'
+import TreeView, { TreeFolder, TreeItem } from '@/components/ui/tree-view/TreeView'
 import { IconButton } from '@/components/ui/Button'
 import { InlineRename } from '@/components/InlineRename'
 import { ConfirmDialog } from '@/components/dialogs/ConfirmDialog'
@@ -57,6 +48,72 @@ function isSelected(selection: Selection, target: Selection): boolean {
   return false
 }
 
+/** Shared grip: quiet at rest, legible on hover, solid while dragging. */
+function DragHandle({
+  label,
+  dragging,
+  attributes,
+  listeners,
+}: {
+  label: string
+  dragging: boolean
+  attributes: ReturnType<typeof useSortable>['attributes']
+  listeners: ReturnType<typeof useSortable>['listeners']
+}) {
+  return (
+    <button
+      type="button"
+      aria-label={label}
+      title="Drag to reorder"
+      className={cn(
+        'shrink-0 cursor-grab touch-none rounded p-0.5 text-edge-strong transition-colors duration-150',
+        'group-hover/row:text-ink-faint hover:!text-ink active:cursor-grabbing',
+        dragging && 'text-ink',
+      )}
+      {...attributes}
+      {...listeners}
+    >
+      <GripVertical size={13} />
+    </button>
+  )
+}
+
+function Count({ value }: { value: number }) {
+  return (
+    <span className="shrink-0 text-[11px] tabular-nums text-ink-faint group-hover/row:hidden">
+      {value}
+    </span>
+  )
+}
+
+/**
+ * The lesson's authored emoji is the most useful glyph here — it is real
+ * curriculum content and tells rows apart. FileText is the structural
+ * fallback, and a boss lesson always wins.
+ */
+function LessonGlyph({
+  lesson,
+  selected,
+}: {
+  lesson: Lesson | undefined
+  selected: boolean
+}) {
+  if (lesson?.isBoss) return <BOSS_ICON size={13} className="shrink-0 text-boss" />
+  if (lesson?.icon) {
+    return (
+      <span className="w-[13px] shrink-0 text-center text-[12px] leading-none">
+        {lesson.icon}
+      </span>
+    )
+  }
+  return (
+    <LESSON_ICON
+      size={13}
+      className={cn('shrink-0', selected ? 'text-accent' : 'text-ink-faint')}
+    />
+  )
+}
+
 /* ------------------------------------------------------------------ *
  * Lesson row
  * ------------------------------------------------------------------ */
@@ -75,14 +132,8 @@ function LessonRow({
   const { selection, dispatch } = useStudio()
   const [renaming, setRenaming] = useState(false)
   const data: DragData = { kind: 'lesson', unitId, lessonId }
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    transform,
-    transition,
-    isDragging,
-  } = useSortable({ id: `lesson:${unitId}:${lessonId}`, data })
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
+    useSortable({ id: `lesson:${unitId}:${lessonId}`, data })
 
   const selected = isSelected(selection, { kind: 'lesson', lessonId })
 
@@ -90,29 +141,30 @@ function LessonRow({
     <div
       ref={setNodeRef}
       style={{ transform: CSS.Translate.toString(transform), transition }}
-      className={cn('group/lesson relative', isDragging && 'z-10 opacity-40')}
+      className={cn('relative', isDragging && 'z-10 opacity-40')}
     >
-      <div
-        className={cn(
-          'flex items-center gap-1 rounded-lg py-1 pr-1 pl-1 transition',
-          selected ? 'bg-accent-soft' : 'hover:bg-panel-2',
-        )}
-      >
-        <button
-          type="button"
-          className="cursor-grab touch-none p-1 text-ink-faint/50 opacity-0 transition group-hover/lesson:opacity-100 active:cursor-grabbing"
-          aria-label={`Reorder ${lesson?.title ?? lessonId}`}
-          {...attributes}
-          {...listeners}
-        >
-          <GripVertical size={13} />
-        </button>
-
-        {renaming && lesson ? (
-          <>
-            <span className="w-5 shrink-0 text-center text-sm leading-none">
-              {lesson.icon || '•'}
-            </span>
+      <TreeItem
+        selected={selected}
+        muted={!selected}
+        danger={!lesson}
+        title={lesson ? 'Double-click to rename' : undefined}
+        label={lesson ? lesson.title : `Missing lesson: ${lessonId}`}
+        icon={<LessonGlyph lesson={lesson} selected={selected} />}
+        leading={
+          <DragHandle
+            label={`Reorder ${lesson?.title ?? lessonId}`}
+            dragging={isDragging}
+            attributes={attributes}
+            listeners={listeners}
+          />
+        }
+        trailing={lesson ? <Count value={lesson.activities.length} /> : null}
+        onSelect={() =>
+          dispatch({ type: 'select', selection: { kind: 'lesson', lessonId } })
+        }
+        onDoubleClick={() => lesson && setRenaming(true)}
+        replaceLabel={
+          renaming && lesson ? (
             <InlineRename
               value={lesson.title}
               onCancel={() => setRenaming(false)}
@@ -121,78 +173,45 @@ function LessonRow({
                 dispatch({ type: 'updateLesson', lessonId, patch: { title } })
               }}
             />
-          </>
-        ) : (
+          ) : undefined
+        }
+        actions={
           <>
-            <button
-              type="button"
-              onClick={() =>
-                dispatch({ type: 'select', selection: { kind: 'lesson', lessonId } })
-              }
-              onDoubleClick={() => lesson && setRenaming(true)}
-              title={lesson ? 'Double-click to rename' : undefined}
-              className="flex min-w-0 flex-1 items-center gap-2 py-0.5 text-left"
+            <IconButton
+              label="Duplicate lesson"
+              size="sm"
+              disabled={!lesson}
+              onClick={() => dispatch({ type: 'duplicateLesson', lessonId })}
             >
-              <span className="w-5 shrink-0 text-center text-sm leading-none">
-                {lesson?.icon || '•'}
-              </span>
-              <span className="min-w-0 flex-1">
-                <span
-                  className={cn(
-                    'block truncate text-[13px]',
-                    selected ? 'font-medium text-ink' : 'text-ink-muted',
-                    !lesson && 'text-danger italic',
-                  )}
-                >
-                  {lesson ? lesson.title : `Missing lesson: ${lessonId}`}
-                </span>
-              </span>
-              {lesson?.isBoss ? (
-                <Shield size={12} className="shrink-0 text-boss" />
-              ) : null}
-              {lesson ? (
-                <span className="shrink-0 text-[11px] tabular-nums text-ink-faint group-hover/lesson:hidden">
-                  {lesson.activities.length}
-                </span>
-              ) : null}
-            </button>
-
-            <div className="hidden shrink-0 items-center group-hover/lesson:flex">
-              <IconButton
-                label="Duplicate lesson"
-                className="h-6 w-6"
-                disabled={!lesson}
-                onClick={() => dispatch({ type: 'duplicateLesson', lessonId })}
-              >
-                <Copy size={11} />
-              </IconButton>
-              <IconButton
-                label="Remove from unit"
-                className="h-6 w-6"
-                onClick={() => dispatch({ type: 'detachLesson', lessonId, unitId })}
-              >
-                <Unlink size={11} />
-              </IconButton>
-              <IconButton
-                label="Delete lesson"
-                className="h-6 w-6 hover:text-danger"
-                onClick={() => {
-                  if (lesson) onRequestDelete(lesson)
-                  else dispatch({ type: 'detachLesson', lessonId, unitId })
-                }}
-              >
-                <Trash2 size={11} />
-              </IconButton>
-            </div>
+              <Copy size={11} />
+            </IconButton>
+            <IconButton
+              label="Remove from unit"
+              size="sm"
+              onClick={() => dispatch({ type: 'detachLesson', lessonId, unitId })}
+            >
+              <Unlink size={11} />
+            </IconButton>
+            <IconButton
+              label="Delete lesson"
+              size="sm"
+              tone="danger"
+              onClick={() => {
+                if (lesson) onRequestDelete(lesson)
+                else dispatch({ type: 'detachLesson', lessonId, unitId })
+              }}
+            >
+              <Trash2 size={11} />
+            </IconButton>
           </>
-        )}
-      </div>
+        }
+      />
     </div>
   )
 }
 
 /* ------------------------------------------------------------------ *
- * Unit block
+ * Unit folder
  * ------------------------------------------------------------------ */
 
 function UnitBlock({
@@ -204,19 +223,12 @@ function UnitBlock({
   onRequestDelete: (unit: Unit) => void
   onRequestDeleteLesson: (lesson: Lesson) => void
 }) {
-  const { selection, collapsedUnits, dispatch } = useStudio()
+  const { selection, dispatch } = useStudio()
   const [renaming, setRenaming] = useState(false)
   const lessonMap = useLessonMap()
-  const collapsed = collapsedUnits.includes(unit.id)
   const data: DragData = { kind: 'unit', unitId: unit.id }
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    transform,
-    transition,
-    isDragging,
-  } = useSortable({ id: `unit:${unit.id}`, data })
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
+    useSortable({ id: `unit:${unit.id}`, data })
 
   const dropzone: DragData = { kind: 'dropzone', unitId: unit.id }
   const { setNodeRef: setDropRef, isOver } = useDroppable({
@@ -231,38 +243,42 @@ function UnitBlock({
     <div
       ref={setNodeRef}
       style={{ transform: CSS.Translate.toString(transform), transition }}
-      className={cn('group/unit', isDragging && 'opacity-40')}
+      className={cn(isDragging && 'opacity-40')}
     >
-      <div
-        className={cn(
-          'flex items-center gap-1 rounded-lg py-1 pr-1 transition',
-          selected ? 'bg-accent-soft' : 'hover:bg-panel-2',
-        )}
-      >
-        <button
-          type="button"
-          className="cursor-grab touch-none p-1 text-ink-faint/50 opacity-0 transition group-hover/unit:opacity-100 active:cursor-grabbing"
-          aria-label={`Reorder ${unit.title}`}
-          {...attributes}
-          {...listeners}
-        >
-          <GripVertical size={14} />
-        </button>
-
-        <IconButton
-          label={collapsed ? 'Expand unit' : 'Collapse unit'}
-          className="h-6 w-6"
-          onClick={() => dispatch({ type: 'toggleUnit', unitId: unit.id })}
-        >
-          {collapsed ? <ChevronRight size={14} /> : <ChevronDown size={14} />}
-        </IconButton>
-
-        {renaming ? (
+      <TreeFolder
+        id={unit.id}
+        selected={selected}
+        title="Double-click to rename"
+        label={unit.title || 'Untitled unit'}
+        danger={!unit.title}
+        icon={
+          <Icon
+            size={13}
+            className={cn('shrink-0', unit.isBoss ? 'text-boss' : 'text-unit')}
+          />
+        }
+        leading={
+          <DragHandle
+            label={`Reorder ${unit.title}`}
+            dragging={isDragging}
+            attributes={attributes}
+            listeners={listeners}
+          />
+        }
+        trailing={
           <>
-            <Icon
-              size={14}
-              className={cn('shrink-0', unit.isBoss ? 'text-boss' : 'text-accent')}
-            />
+            {unit.isBoss ? (
+              <span className="chip shrink-0 bg-boss-soft text-boss">boss</span>
+            ) : null}
+            <Count value={unit.lessonIds.length} />
+          </>
+        }
+        onSelect={() =>
+          dispatch({ type: 'select', selection: { kind: 'unit', unitId: unit.id } })
+        }
+        onDoubleClick={() => setRenaming(true)}
+        replaceLabel={
+          renaming ? (
             <InlineRename
               value={unit.title}
               onCancel={() => setRenaming(false)}
@@ -271,95 +287,66 @@ function UnitBlock({
                 dispatch({ type: 'updateUnit', unitId: unit.id, patch: { title } })
               }}
             />
+          ) : undefined
+        }
+        actions={
+          <>
+            <IconButton
+              label="Add lesson"
+              size="sm"
+              onClick={() => {
+                dispatch({ type: 'expandUnit', unitId: unit.id })
+                dispatch({ type: 'addLesson', unitId: unit.id })
+              }}
+            >
+              <Plus size={12} />
+            </IconButton>
+            <IconButton
+              label="Duplicate unit"
+              size="sm"
+              onClick={() => dispatch({ type: 'duplicateUnit', unitId: unit.id })}
+            >
+              <Copy size={11} />
+            </IconButton>
+            <IconButton
+              label="Delete unit"
+              size="sm"
+              tone="danger"
+              onClick={() => onRequestDelete(unit)}
+            >
+              <Trash2 size={11} />
+            </IconButton>
           </>
-        ) : (
-          <button
-            type="button"
-            onClick={() =>
-              dispatch({ type: 'select', selection: { kind: 'unit', unitId: unit.id } })
-            }
-            onDoubleClick={() => setRenaming(true)}
-            title="Double-click to rename"
-            className="flex min-w-0 flex-1 items-center gap-2 py-0.5 text-left"
-          >
-            <Icon
-              size={14}
-              className={cn('shrink-0', unit.isBoss ? 'text-boss' : 'text-accent')}
-            />
-            <span className="min-w-0 flex-1 truncate text-sm font-medium text-ink">
-              {unit.title || <span className="text-danger italic">Untitled unit</span>}
-            </span>
-            {unit.isBoss ? (
-              <span className="chip border border-boss/30 bg-boss/10 text-boss">boss</span>
-            ) : null}
-            <span className="shrink-0 text-[11px] tabular-nums text-ink-faint group-hover/unit:hidden">
-              {unit.lessonIds.length}
-            </span>
-          </button>
-        )}
-
-        <div className="hidden shrink-0 items-center group-hover/unit:flex">
-          <IconButton
-            label="Add lesson"
-            className="h-6 w-6"
-            onClick={() => {
-              dispatch({ type: 'expandUnit', unitId: unit.id })
-              dispatch({ type: 'addLesson', unitId: unit.id })
-            }}
-          >
-            <Plus size={13} />
-          </IconButton>
-          <IconButton
-            label="Duplicate unit"
-            className="h-6 w-6"
-            onClick={() => dispatch({ type: 'duplicateUnit', unitId: unit.id })}
-          >
-            <Copy size={12} />
-          </IconButton>
-          <IconButton
-            label="Delete unit"
-            className="h-6 w-6 hover:text-danger"
-            onClick={() => onRequestDelete(unit)}
-          >
-            <Trash2 size={12} />
-          </IconButton>
-        </div>
-      </div>
-
-      {collapsed ? null : (
-        <div
-          ref={setDropRef}
-          className={cn(
-            'mt-0.5 ml-[18px] border-l border-edge pl-2 transition',
-            isOver && 'border-accent/60 bg-accent/5',
-          )}
-        >
-          <SortableContext
-            items={unit.lessonIds.map((id) => `lesson:${unit.id}:${id}`)}
-            strategy={verticalListSortingStrategy}
-          >
-            {unit.lessonIds.map((lessonId) => (
-              <LessonRow
-                key={`${unit.id}:${lessonId}`}
-                unitId={unit.id}
-                lessonId={lessonId}
-                lesson={lessonMap.get(lessonId)}
-                onRequestDelete={onRequestDeleteLesson}
-              />
-            ))}
-          </SortableContext>
-
-          {unit.lessonIds.length === 0 ? (
+        }
+        bodyRef={setDropRef}
+        bodyClassName={cn(isOver && 'rounded-md bg-accent-soft/60')}
+        footer={
+          unit.lessonIds.length === 0 ? (
             <button
               type="button"
               onClick={() => dispatch({ type: 'addLesson', unitId: unit.id })}
-              className="my-1 w-full rounded-lg border border-dashed border-edge px-2 py-1.5 text-left text-xs text-ink-faint hover:border-accent/40 hover:text-ink-muted"
+              className="ml-5 flex h-7 items-center gap-1.5 rounded-md px-1.5 text-[12.5px] text-ink-faint transition-colors duration-150 hover:bg-edge-soft hover:text-ink-muted"
             >
-              No lessons — add one
+              <Plus size={12} /> Add lesson
             </button>
-          ) : null}
-        </div>
-      )}
+          ) : null
+        }
+      >
+        <SortableContext
+          items={unit.lessonIds.map((id) => `lesson:${unit.id}:${id}`)}
+          strategy={verticalListSortingStrategy}
+        >
+          {unit.lessonIds.map((lessonId) => (
+            <LessonRow
+              key={`${unit.id}:${lessonId}`}
+              unitId={unit.id}
+              lessonId={lessonId}
+              lesson={lessonMap.get(lessonId)}
+              onRequestDelete={onRequestDeleteLesson}
+            />
+          ))}
+        </SortableContext>
+      </TreeFolder>
     </div>
   )
 }
@@ -369,7 +356,7 @@ function UnitBlock({
  * ------------------------------------------------------------------ */
 
 export function CurriculumTree() {
-  const { curriculum, selection, dispatch } = useStudio()
+  const { curriculum, selection, collapsedUnits, dispatch } = useStudio()
   const [activeDrag, setActiveDrag] = useState<DragData | null>(null)
   const [unitPendingDelete, setUnitPendingDelete] = useState<Unit | null>(null)
   const [lessonPendingDelete, setLessonPendingDelete] = useState<Lesson | null>(null)
@@ -384,7 +371,24 @@ export function CurriculumTree() {
     return curriculum.lessons.filter((lesson) => !referenced.has(lesson.id))
   }, [curriculum])
 
-  const lessonCount = curriculum.lessons.length
+  /* The store keeps the inverse (collapsed); the tree wants the open set. */
+  const openIds = useMemo(
+    () =>
+      curriculum.units
+        .map((unit) => unit.id)
+        .filter((id) => !collapsedUnits.includes(id)),
+    [curriculum.units, collapsedUnits],
+  )
+
+  function handleOpenIdsChange(next: string[]) {
+    const before = new Set(openIds)
+    const after = new Set(next)
+    for (const unit of curriculum.units) {
+      if (before.has(unit.id) !== after.has(unit.id)) {
+        dispatch({ type: 'toggleUnit', unitId: unit.id })
+      }
+    }
+  }
 
   function handleDragStart(event: DragStartEvent) {
     setActiveDrag((event.active.data.current as DragData | undefined) ?? null)
@@ -444,36 +448,52 @@ export function CurriculumTree() {
     return null
   })()
 
+  const chapterSelected = selection.kind === 'chapter'
+
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <div className="flex items-center justify-between px-3 pt-3 pb-2">
-        <h2 className="text-[11px] font-semibold tracking-[0.1em] text-ink-faint uppercase">
-          Curriculum Tree
-        </h2>
-        <span className="text-[11px] text-ink-faint">
-          {curriculum.units.length}u · {lessonCount}l
+      <div className="flex h-9 shrink-0 items-center justify-between px-3">
+        <h2 className="field-eyebrow">Curriculum</h2>
+        <span
+          className="text-[11px] tabular-nums text-ink-faint"
+          title={`${pluralize(curriculum.units.length, 'unit')}, ${pluralize(
+            curriculum.lessons.length,
+            'lesson',
+          )}`}
+        >
+          {curriculum.units.length} · {curriculum.lessons.length}
         </span>
       </div>
 
       <div className="min-h-0 flex-1 overflow-y-auto px-2 pb-6">
-        <button
-          type="button"
-          onClick={() => dispatch({ type: 'select', selection: { kind: 'chapter' } })}
-          className={cn(
-            'mb-1 flex w-full items-center gap-2 rounded-lg px-2 py-2 text-left transition',
-            selection.kind === 'chapter' ? 'bg-accent-soft' : 'hover:bg-panel-2',
-          )}
-        >
-          <Layers size={15} className="shrink-0 text-accent" />
-          <span className="min-w-0 flex-1">
-            <span className="block truncate text-sm font-semibold text-ink">
-              {curriculum.chapter.title || 'Untitled chapter'}
+        {/* Chapter root */}
+        <div className="group/row relative mb-1">
+          <span
+            aria-hidden
+            className={cn(
+              'absolute top-1 bottom-1 left-0 w-[2px] rounded-full transition-opacity duration-150',
+              chapterSelected ? 'bg-accent opacity-100' : 'opacity-0',
+            )}
+          />
+          <button
+            type="button"
+            onClick={() => dispatch({ type: 'select', selection: { kind: 'chapter' } })}
+            className={cn(
+              'flex w-full items-center gap-1.5 rounded-md py-1.5 pr-1.5 pl-1.5 text-left transition-colors duration-150',
+              chapterSelected ? 'bg-accent-soft' : 'hover:bg-edge-soft',
+            )}
+          >
+            <CHAPTER_ICON size={14} className="shrink-0 text-chapter" />
+            <span className="min-w-0 flex-1">
+              <span className="block truncate text-[13px] font-semibold text-ink">
+                {curriculum.chapter.title || 'Untitled chapter'}
+              </span>
+              <span className="block truncate text-[11px] text-ink-faint">
+                Chapter {curriculum.chapter.number} · {curriculum.chapter.id}
+              </span>
             </span>
-            <span className="block truncate text-[11px] text-ink-faint">
-              Chapter {curriculum.chapter.number} · {curriculum.chapter.id}
-            </span>
-          </span>
-        </button>
+          </button>
+        </div>
 
         <DndContext
           sensors={sensors}
@@ -482,11 +502,11 @@ export function CurriculumTree() {
           onDragEnd={handleDragEnd}
           onDragCancel={() => setActiveDrag(null)}
         >
-          <SortableContext
-            items={curriculum.units.map((unit) => `unit:${unit.id}`)}
-            strategy={verticalListSortingStrategy}
-          >
-            <div className="space-y-0.5">
+          <TreeView openIds={openIds} onOpenIdsChange={handleOpenIdsChange}>
+            <SortableContext
+              items={curriculum.units.map((unit) => `unit:${unit.id}`)}
+              strategy={verticalListSortingStrategy}
+            >
               {curriculum.units.map((unit) => (
                 <UnitBlock
                   key={unit.id}
@@ -495,12 +515,12 @@ export function CurriculumTree() {
                   onRequestDeleteLesson={setLessonPendingDelete}
                 />
               ))}
-            </div>
-          </SortableContext>
+            </SortableContext>
+          </TreeView>
 
           <DragOverlay dropAnimation={null}>
             {dragLabel ? (
-              <div className="rounded-lg border border-accent/50 bg-panel-2 px-3 py-1.5 text-[13px] text-ink shadow-xl shadow-black/40">
+              <div className="cursor-grabbing rounded-md border border-edge bg-panel px-2.5 py-1.5 text-[13px] text-ink shadow-(--shadow-drag)">
                 {dragLabel}
               </div>
             ) : null}
@@ -510,46 +530,45 @@ export function CurriculumTree() {
         <button
           type="button"
           onClick={() => dispatch({ type: 'addUnit' })}
-          className="mt-2 flex w-full items-center gap-2 rounded-lg border border-dashed border-edge px-3 py-2 text-[13px] text-ink-faint transition hover:border-accent/50 hover:text-ink"
+          className="mt-1.5 flex h-7 w-full items-center gap-1.5 rounded-md px-1.5 text-[12.5px] text-ink-faint transition-colors duration-150 hover:bg-edge-soft hover:text-ink"
         >
-          <Plus size={14} /> Add unit
+          <Plus size={13} /> Add unit
         </button>
 
         {orphans.length > 0 ? (
           <div className="mt-5">
-            <h3 className="px-2 pb-1 text-[11px] font-semibold tracking-[0.1em] text-boss/80 uppercase">
-              Unassigned lessons
-            </h3>
-            <p className="px-2 pb-1.5 text-[11px] text-ink-faint">
-              {pluralize(orphans.length, 'lesson')} not referenced by any unit.
-            </p>
-            <div className="space-y-0.5">
-              {orphans.map((lesson) => (
-                <button
-                  key={lesson.id}
-                  type="button"
-                  onClick={() =>
-                    dispatch({
-                      type: 'select',
-                      selection: { kind: 'lesson', lessonId: lesson.id },
-                    })
-                  }
-                  className={cn(
-                    'flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left transition',
-                    isSelected(selection, { kind: 'lesson', lessonId: lesson.id })
-                      ? 'bg-accent-soft'
-                      : 'hover:bg-panel-2',
-                  )}
-                >
-                  <span className="w-5 text-center text-sm">{lesson.icon || '•'}</span>
-                  <span className="min-w-0 flex-1 truncate text-[13px] text-ink-muted">
-                    {lesson.title}
-                  </span>
-                  <span className="text-[11px] text-ink-faint">
-                    {lesson.activities.length}
-                  </span>
-                </button>
-              ))}
+            <div className="mb-1 flex items-center justify-between px-1.5">
+              <h3 className="field-eyebrow text-warning">Unassigned</h3>
+              <span
+                className="text-[11px] text-ink-faint"
+                title={`${pluralize(orphans.length, 'lesson')} not referenced by any unit`}
+              >
+                {orphans.length}
+              </span>
+            </div>
+            <div className="tree-view">
+              {orphans.map((lesson) => {
+                const selected = isSelected(selection, {
+                  kind: 'lesson',
+                  lessonId: lesson.id,
+                })
+                return (
+                  <TreeItem
+                    key={lesson.id}
+                    selected={selected}
+                    muted={!selected}
+                    label={lesson.title}
+                    icon={<LessonGlyph lesson={lesson} selected={selected} />}
+                    trailing={<Count value={lesson.activities.length} />}
+                    onSelect={() =>
+                      dispatch({
+                        type: 'select',
+                        selection: { kind: 'lesson', lessonId: lesson.id },
+                      })
+                    }
+                  />
+                )
+              })}
             </div>
           </div>
         ) : null}

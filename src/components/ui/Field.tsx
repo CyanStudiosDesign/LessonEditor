@@ -6,18 +6,23 @@ interface FieldProps {
   label: string
   hint?: string
   className?: string
+  /** Rendered to the right of the label — e.g. a character count or badge. */
+  aside?: ReactNode
   children: (id: string) => ReactNode
 }
 
-export function Field({ label, hint, className, children }: FieldProps) {
+export function Field({ label, hint, className, aside, children }: FieldProps) {
   const id = useId()
   return (
     <div className={className}>
-      <label className="field-label" htmlFor={id}>
-        {label}
-      </label>
+      <div className="flex items-baseline justify-between gap-2">
+        <label className="field-label" htmlFor={id}>
+          {label}
+        </label>
+        {aside ? <span className="mb-1.5 text-[11px] text-ink-faint">{aside}</span> : null}
+      </div>
       {children(id)}
-      {hint ? <p className="mt-1 text-xs text-ink-faint">{hint}</p> : null}
+      {hint ? <p className="mt-1.5 text-[12px] leading-snug text-ink-faint">{hint}</p> : null}
     </div>
   )
 }
@@ -75,7 +80,7 @@ export function TextAreaField({
         <textarea
           id={id}
           rows={rows}
-          className="field-input resize-y leading-relaxed"
+          className="field-input field-input-area"
           value={value}
           placeholder={placeholder}
           onChange={(event) => onChange(event.target.value)}
@@ -91,6 +96,8 @@ interface NumberFieldProps {
   onChange: (value: number) => void
   min?: number
   hint?: string
+  /** Unit shown inside the field, e.g. "min". */
+  suffix?: string
   className?: string
 }
 
@@ -100,22 +107,74 @@ export function NumberField({
   onChange,
   min,
   hint,
+  suffix,
   className,
 }: NumberFieldProps) {
   return (
     <Field label={label} hint={hint} className={className}>
       {(id) => (
-        <input
+        <div className="relative">
+          <input
+            id={id}
+            type="number"
+            min={min}
+            className={cn('field-input tabular-nums', suffix && 'pr-12')}
+            value={Number.isFinite(value) ? value : ''}
+            onChange={(event) => {
+              const next = event.target.valueAsNumber
+              onChange(Number.isNaN(next) ? 0 : next)
+            }}
+          />
+          {suffix ? (
+            <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-[12px] text-ink-faint">
+              {suffix}
+            </span>
+          ) : null}
+        </div>
+      )}
+    </Field>
+  )
+}
+
+interface SelectFieldProps {
+  label: string
+  value: string
+  onChange: (value: string) => void
+  options: { value: string; label: string }[]
+  placeholder?: string
+  hint?: string
+  className?: string
+}
+
+export function SelectField({
+  label,
+  value,
+  onChange,
+  options,
+  placeholder,
+  hint,
+  className,
+}: SelectFieldProps) {
+  return (
+    <Field label={label} hint={hint} className={className}>
+      {(id) => (
+        <select
           id={id}
-          type="number"
-          min={min}
-          className="field-input"
-          value={Number.isFinite(value) ? value : ''}
-          onChange={(event) => {
-            const next = event.target.valueAsNumber
-            onChange(Number.isNaN(next) ? 0 : next)
+          className="field-input cursor-pointer appearance-none bg-[length:16px] bg-[right_0.65rem_center] bg-no-repeat pr-9"
+          style={{
+            backgroundImage:
+              "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%238a8f98' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E\")",
           }}
-        />
+          value={value}
+          onChange={(event) => onChange(event.target.value)}
+        >
+          {placeholder ? <option value="">{placeholder}</option> : null}
+          {options.map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
+        </select>
       )}
     </Field>
   )
@@ -141,6 +200,7 @@ export function IdField({
   className,
 }: IdFieldProps) {
   const [draft, setDraft] = useState(value)
+  const dirty = draft !== value
 
   useEffect(() => setDraft(value), [value])
 
@@ -155,13 +215,20 @@ export function IdField({
   }
 
   return (
-    <Field label={label} hint={hint} className={className}>
+    <Field
+      label={label}
+      hint={hint}
+      className={className}
+      aside={dirty ? 'Enter to apply' : undefined}
+    >
       {(id) => (
         <input
           id={id}
-          className="field-input field-input-mono"
+          className={cn('field-input field-input-mono', dirty && 'border-accent')}
           value={draft}
           spellCheck={false}
+          autoCorrect="off"
+          autoCapitalize="off"
           onChange={(event) => setDraft(event.target.value)}
           onBlur={commit}
           onKeyDown={(event) => {
@@ -194,17 +261,25 @@ export function CheckField({
   onChange,
 }: CheckFieldProps) {
   return (
-    <label className="flex cursor-pointer items-start gap-2.5 rounded-lg border border-edge bg-panel-2 px-3 py-2.5">
+    <label
+      className={cn(
+        'flex cursor-pointer items-start gap-2.5 rounded-lg border px-3 py-2.5',
+        'transition-colors duration-150',
+        checked
+          ? 'border-accent/30 bg-accent-soft'
+          : 'border-edge bg-panel hover:border-edge-strong',
+      )}
+    >
       <input
         type="checkbox"
-        className="mt-0.5 h-4 w-4 accent-[var(--color-accent)]"
+        className="mt-px h-3.5 w-3.5 accent-[var(--color-accent)]"
         checked={checked}
         onChange={(event) => onChange(event.target.checked)}
       />
-      <span>
-        <span className="block text-sm text-ink">{label}</span>
+      <span className="min-w-0">
+        <span className="block text-[13px] font-medium text-ink">{label}</span>
         {description ? (
-          <span className="block text-xs text-ink-faint">{description}</span>
+          <span className="mt-0.5 block text-[12px] text-ink-faint">{description}</span>
         ) : null}
       </span>
     </label>

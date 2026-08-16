@@ -3,6 +3,7 @@ import { ArrowLeft, Check, Lightbulb, RotateCcw, X } from 'lucide-react'
 import type { Activity, Lesson } from '@/types/curriculum'
 import { ACTIVITY_TYPE_LABELS } from '@/types/curriculum'
 import { cn } from '@/lib/utils'
+import { ACTIVITY_ICONS, ACTIVITY_INK } from '@/lib/icons'
 import { Button } from '@/components/ui/Button'
 import { Modal } from '@/components/ui/Modal'
 
@@ -18,7 +19,7 @@ function ExplanationView({
           visual · {activity.visual}
         </span>
       ) : null}
-      <p className="text-[15px] leading-relaxed whitespace-pre-wrap text-ink-muted">
+      <p className="text-[15px] leading-[1.7] whitespace-pre-wrap text-ink-muted">
         {activity.content}
       </p>
     </>
@@ -27,7 +28,8 @@ function ExplanationView({
 
 /**
  * Walks the lesson's `activities` array in its stored order — the same sequence
- * the consuming app will render.
+ * the consuming app will render. Deliberately styled apart from the editor
+ * chrome so it reads as the student-facing surface.
  */
 export function PreviewDialog({
   lesson,
@@ -92,44 +94,56 @@ export function PreviewDialog({
     }
   })()
 
-  const canContinue =
-    !activity || activity.type === 'explanation' || revealed
+  const canContinue = !activity || activity.type === 'explanation' || revealed
+  const TypeIcon = activity ? ACTIVITY_ICONS[activity.type] : null
+
+  const optionClass = (picked: boolean, isAnswer: boolean) =>
+    cn(
+      'w-full rounded-xl border px-4 py-3 text-left text-[14px] transition-colors duration-150',
+      revealed && isAnswer
+        ? 'border-success/40 bg-success-soft text-success'
+        : picked
+          ? 'border-danger/40 bg-danger-soft text-danger'
+          : 'border-edge bg-panel text-ink hover:border-edge-strong hover:bg-panel-2',
+      revealed && 'cursor-default',
+    )
 
   return (
     <Modal open={open} onClose={onClose} size="md" bare>
-      <div className="flex items-center gap-3 border-b border-edge px-5 py-3">
-        <span className="text-lg">{lesson.icon}</span>
+      <div className="flex items-center gap-2.5 border-b border-edge px-4 py-2.5">
+        <span className="text-[16px] leading-none">{lesson.icon}</span>
         <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-semibold text-ink">{lesson.title}</p>
-          <p className="text-[11px] text-ink-faint">
+          <p className="truncate text-[13px] font-semibold text-ink">{lesson.title}</p>
+          <p className="text-[11.5px] tabular-nums text-ink-faint">
             {done ? 'Complete' : `Activity ${step + 1} of ${total}`}
           </p>
         </div>
+        <span className="chip border border-edge bg-panel-2 text-ink-faint">Preview</span>
         <button
           type="button"
           onClick={onClose}
           aria-label="Close preview"
-          className="rounded-md p-1 text-ink-faint hover:bg-panel-2 hover:text-ink"
+          className="rounded-md p-1 text-ink-faint transition-colors duration-150 hover:bg-edge-soft hover:text-ink"
         >
-          <X size={16} />
+          <X size={15} />
         </button>
       </div>
 
-      <div className="h-1 bg-panel-2">
+      <div className="h-0.5 bg-edge-soft">
         <div
-          className="h-full bg-accent transition-all duration-300"
+          className="h-full bg-accent transition-[width] duration-300"
           style={{ width: `${total === 0 ? 100 : (Math.min(step, total) / total) * 100}%` }}
         />
       </div>
 
-      <div className="min-h-[280px] px-6 py-6">
+      <div className="min-h-[300px] bg-canvas px-7 py-7">
         {done ? (
-          <div className="flex h-full flex-col items-center justify-center py-10 text-center">
-            <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-success/15 text-success">
-              <Check size={22} />
+          <div className="flex flex-col items-center justify-center py-12 text-center">
+            <div className="mb-3 flex h-11 w-11 items-center justify-center rounded-full border border-success/20 bg-success-soft text-success">
+              <Check size={20} />
             </div>
-            <p className="text-lg font-semibold text-ink">Lesson complete</p>
-            <p className="mt-1 text-sm text-ink-faint">
+            <p className="text-[15px] font-semibold text-ink">End of lesson</p>
+            <p className="mt-1 text-[13px] text-ink-faint">
               {total} activities in stored order.
             </p>
             <Button className="mt-5" onClick={() => setStep(0)}>
@@ -138,10 +152,17 @@ export function PreviewDialog({
           </div>
         ) : activity ? (
           <>
-            <p className="mb-1 text-[11px] font-semibold tracking-[0.1em] text-ink-faint uppercase">
-              {ACTIVITY_TYPE_LABELS[activity.type]}
+            <p className="mb-2 flex items-center gap-1.5 text-[11px] font-semibold tracking-[0.06em] uppercase">
+              {TypeIcon ? (
+                <TypeIcon size={12} className={ACTIVITY_INK[activity.type]} />
+              ) : null}
+              <span className={ACTIVITY_INK[activity.type]}>
+                {ACTIVITY_TYPE_LABELS[activity.type]}
+              </span>
             </p>
-            <h3 className="mb-4 text-xl font-semibold text-ink">{activity.title}</h3>
+            <h3 className="mb-4 text-[20px] leading-tight font-semibold tracking-[-0.01em] text-ink">
+              {activity.title}
+            </h3>
 
             {activity.type === 'explanation' ? (
               <ExplanationView activity={activity} />
@@ -149,77 +170,58 @@ export function PreviewDialog({
 
             {activity.type === 'multiple_choice' ? (
               <>
-                <p className="mb-4 text-[15px] leading-relaxed text-ink-muted">
+                <p className="mb-4 text-[14.5px] leading-relaxed text-ink-muted">
                   {activity.question}
                 </p>
                 <div className="space-y-2">
-                  {activity.options.map((option, index) => {
-                    const picked = choice === index
-                    const isAnswer = index === activity.answer
-                    return (
-                      <button
-                        key={`${option}-${index}`}
-                        type="button"
-                        disabled={revealed}
-                        onClick={() => {
-                          setChoice(index)
-                          setRevealed(true)
-                        }}
-                        className={cn(
-                          'w-full rounded-xl border px-4 py-3 text-left text-sm transition',
-                          revealed && isAnswer
-                            ? 'border-success/50 bg-success/10 text-success'
-                            : picked
-                              ? 'border-danger/50 bg-danger/10 text-danger'
-                              : 'border-edge bg-panel-2 text-ink-muted hover:border-accent/40 hover:text-ink',
-                        )}
-                      >
-                        {option || <span className="italic">Empty option</span>}
-                      </button>
-                    )
-                  })}
+                  {activity.options.map((option, index) => (
+                    <button
+                      key={`${option}-${index}`}
+                      type="button"
+                      disabled={revealed}
+                      onClick={() => {
+                        setChoice(index)
+                        setRevealed(true)
+                      }}
+                      className={optionClass(choice === index, index === activity.answer)}
+                    >
+                      {option || <span className="italic">Empty option</span>}
+                    </button>
+                  ))}
                 </div>
               </>
             ) : null}
 
             {activity.type === 'true_false' ? (
               <>
-                <p className="mb-4 text-[15px] leading-relaxed text-ink-muted">
+                <p className="mb-4 text-[14.5px] leading-relaxed text-ink-muted">
                   {activity.statement}
                 </p>
                 <div className="flex gap-2">
-                  {[true, false].map((value) => {
-                    const picked = choice === value
-                    const isAnswer = value === activity.answer
-                    return (
-                      <button
-                        key={String(value)}
-                        type="button"
-                        disabled={revealed}
-                        onClick={() => {
-                          setChoice(value)
-                          setRevealed(true)
-                        }}
-                        className={cn(
-                          'flex-1 rounded-xl border px-4 py-3 text-sm font-medium transition',
-                          revealed && isAnswer
-                            ? 'border-success/50 bg-success/10 text-success'
-                            : picked
-                              ? 'border-danger/50 bg-danger/10 text-danger'
-                              : 'border-edge bg-panel-2 text-ink-muted hover:border-accent/40 hover:text-ink',
-                        )}
-                      >
-                        {value ? 'True' : 'False'}
-                      </button>
-                    )
-                  })}
+                  {[true, false].map((value) => (
+                    <button
+                      key={String(value)}
+                      type="button"
+                      disabled={revealed}
+                      onClick={() => {
+                        setChoice(value)
+                        setRevealed(true)
+                      }}
+                      className={cn(
+                        optionClass(choice === value, value === activity.answer),
+                        'flex-1 text-center font-medium',
+                      )}
+                    >
+                      {value ? 'True' : 'False'}
+                    </button>
+                  ))}
                 </div>
               </>
             ) : null}
 
             {activity.type === 'fill_blank' ? (
               <>
-                <p className="mb-4 text-[15px] leading-relaxed text-ink-muted">
+                <p className="mb-4 text-[14.5px] leading-relaxed text-ink-muted">
                   {activity.prompt}
                 </p>
                 <form
@@ -232,6 +234,7 @@ export function PreviewDialog({
                   <input
                     className="field-input flex-1"
                     placeholder="Type your answer"
+                    aria-label="Your answer"
                     value={typed}
                     disabled={revealed}
                     onChange={(event) => setTyped(event.target.value)}
@@ -244,8 +247,8 @@ export function PreviewDialog({
             ) : null}
 
             {activity.type !== 'explanation' && activity.hint && !revealed ? (
-              <p className="mt-4 flex items-start gap-2 text-xs text-ink-faint">
-                <Lightbulb size={13} className="mt-0.5 shrink-0 text-boss" />
+              <p className="mt-4 flex items-start gap-2 rounded-lg border border-edge bg-panel px-3 py-2 text-[12.5px] text-ink-muted">
+                <Lightbulb size={13} className="mt-0.5 shrink-0 text-warning" />
                 {activity.hint}
               </p>
             ) : null}
@@ -253,20 +256,27 @@ export function PreviewDialog({
             {revealed && activity.type !== 'explanation' ? (
               <div
                 className={cn(
-                  'mt-4 rounded-xl border px-4 py-3 text-sm',
+                  'mt-4 rounded-xl border-l-2 px-4 py-3 text-[13.5px]',
                   answeredCorrectly
-                    ? 'border-success/30 bg-success/5 text-success'
-                    : 'border-danger/30 bg-danger/5 text-danger',
+                    ? 'border-l-success bg-success-soft'
+                    : 'border-l-danger bg-danger-soft',
                 )}
               >
-                <p className="font-medium">
+                <p
+                  className={cn(
+                    'font-medium',
+                    answeredCorrectly ? 'text-success' : 'text-danger',
+                  )}
+                >
                   {answeredCorrectly ? 'Correct' : 'Not quite'}
                   {activity.type === 'fill_blank' && !answeredCorrectly
                     ? ` — expected “${activity.answer}”`
                     : ''}
                 </p>
                 {activity.explanation ? (
-                  <p className="mt-1 text-ink-muted">{activity.explanation}</p>
+                  <p className="mt-1 leading-relaxed text-ink-muted">
+                    {activity.explanation}
+                  </p>
                 ) : null}
               </div>
             ) : null}
@@ -275,10 +285,13 @@ export function PreviewDialog({
       </div>
 
       {done ? null : (
-        <div className="flex items-center justify-between border-t border-edge px-5 py-3">
+        <div className="flex items-center justify-between border-t border-edge px-4 py-2.5">
           <Button variant="ghost" disabled={step === 0} onClick={goBack}>
             <ArrowLeft size={14} /> Back
           </Button>
+          <span className="text-[11.5px] tabular-nums text-ink-faint">
+            {step + 1} / {total}
+          </span>
           <Button variant="primary" disabled={!canContinue} onClick={goNext}>
             Continue
           </Button>

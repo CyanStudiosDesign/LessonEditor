@@ -1,3 +1,4 @@
+import { TriangleAlert } from 'lucide-react'
 import type { Unit } from '@/types/curriculum'
 import { pluralize } from '@/lib/utils'
 import { useStudio } from '@/state/store'
@@ -26,6 +27,11 @@ export function DeleteUnitDialog({
       onClose={onClose}
       size="sm"
       title={`Delete “${unit.title}”?`}
+      icon={
+        <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-danger-soft text-danger">
+          <TriangleAlert size={14} />
+        </span>
+      }
       subtitle={
         count === 0
           ? 'This unit references no lessons.'
@@ -38,7 +44,6 @@ export function DeleteUnitDialog({
           </Button>
           {count > 0 ? (
             <Button
-              variant="outline"
               onClick={() => {
                 dispatch({ type: 'deleteUnit', unitId: unit.id, deleteLessons: false })
                 onClose()
@@ -48,7 +53,7 @@ export function DeleteUnitDialog({
             </Button>
           ) : null}
           <Button
-            variant="danger"
+            variant="danger-solid"
             onClick={() => {
               dispatch({ type: 'deleteUnit', unitId: unit.id, deleteLessons: true })
               onClose()
@@ -59,18 +64,28 @@ export function DeleteUnitDialog({
         </>
       }
     >
-      <p className="text-sm text-ink-muted">
-        {count > 0 ? (
-          <>
-            <strong className="text-ink">Keep lessons</strong> removes only the unit —
-            its lessons stay in the top-level <code className="font-mono">lessons</code>{' '}
-            array and appear under “Unassigned lessons”.{' '}
-            <strong className="text-ink">Delete unit + lessons</strong> removes both.
-          </>
-        ) : (
-          'The unit will be removed from the units array.'
-        )}
-      </p>
+      {count > 0 ? (
+        <dl className="space-y-2.5 text-[13px]">
+          <div className="rounded-lg border border-edge bg-panel-2 px-3 py-2.5">
+            <dt className="font-medium text-ink">Keep lessons</dt>
+            <dd className="mt-0.5 leading-snug text-ink-muted">
+              Removes only the unit. Its lessons stay in the top-level{' '}
+              <code className="font-mono text-[11.5px]">lessons</code> array and appear
+              under “Unassigned”.
+            </dd>
+          </div>
+          <div className="rounded-lg border border-edge bg-panel-2 px-3 py-2.5">
+            <dt className="font-medium text-ink">Delete unit + lessons</dt>
+            <dd className="mt-0.5 leading-snug text-ink-muted">
+              Removes the unit and its {pluralize(count, 'lesson')} entirely.
+            </dd>
+          </div>
+        </dl>
+      ) : (
+        <p className="text-[13px] text-ink-muted">
+          The unit will be removed from the units array.
+        </p>
+      )}
     </Modal>
   )
 }

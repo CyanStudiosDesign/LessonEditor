@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react'
+import { TriangleAlert } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { Modal } from '@/components/ui/Modal'
 
@@ -26,19 +27,31 @@ export function ConfirmDialog({
       open={open}
       onClose={onCancel}
       size="sm"
+      flush
       title={title}
+      icon={
+        destructive ? (
+          <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-danger-soft text-danger">
+            <TriangleAlert size={14} />
+          </span>
+        ) : undefined
+      }
+      subtitle={description}
       footer={
         <>
           <Button variant="ghost" onClick={onCancel}>
             {cancelLabel}
           </Button>
-          <Button variant={destructive ? 'danger' : 'primary'} onClick={onConfirm}>
+          <Button
+            variant={destructive ? 'danger-solid' : 'primary'}
+            onClick={onConfirm}
+          >
             {confirmLabel}
           </Button>
         </>
       }
     >
-      <p className="text-sm text-ink-muted">{description}</p>
+      <span className="sr-only">{title}</span>
     </Modal>
   )
 }

@@ -1,4 +1,4 @@
-import type { Curriculum, Selection } from '@/types/curriculum'
+import type { ActivityType, Curriculum, Selection } from '@/types/curriculum'
 import { ACTIVITY_TYPE_LABELS } from '@/types/curriculum'
 
 export interface SearchResult {
@@ -8,6 +8,9 @@ export interface SearchResult {
   /** The matching text, with context. */
   context: string
   target: Selection
+  /** Presentation hints so a result can carry its own icon. */
+  activityType?: ActivityType
+  emoji?: string
 }
 
 function matches(haystack: unknown, needle: string): boolean {
@@ -61,6 +64,7 @@ export function searchCurriculum(
         title: lesson.title,
         context: lesson.description || lesson.id,
         target: { kind: 'lesson', lessonId: lesson.id },
+        emoji: lesson.icon,
       })
     }
 
@@ -93,6 +97,7 @@ export function searchCurriculum(
           title: activity.title,
           context: `${ACTIVITY_TYPE_LABELS[activity.type]} · ${lesson.title}`,
           target: { kind: 'activity', lessonId: lesson.id, activityId: activity.id },
+          activityType: activity.type,
         })
       }
     }
