@@ -27,6 +27,8 @@ Application state *is* the exported shape — there is no separate internal mode
   (`src/lib/schema.ts`, `withExtras`).
 - Export writes exactly one file, `<chapter.id>.json`, 2-space indented.
 
+hello wveryone
+
 ## Where things live
 
 | Path | Role |
