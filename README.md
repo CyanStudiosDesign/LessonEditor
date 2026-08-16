@@ -27,7 +27,6 @@ Application state *is* the exported shape — there is no separate internal mode
   (`src/lib/schema.ts`, `withExtras`).
 - Export writes exactly one file, `<chapter.id>.json`, 2-space indented.
 
-hello wveryone
 
 ## Where things live
 
@@ -61,3 +60,5 @@ These invariants are covered by `src/lib/curriculum.test.ts` (24 tests).
 
 No backend, database, auth or cloud storage. `localStorage` holds the working
 copy between sessions; the exported `.json` is the portable source of truth.
+
+hello everyone
