@@ -21,7 +21,6 @@ import { CSS } from '@dnd-kit/utilities'
 import { Copy, GripVertical, Plus, Trash2, Unlink } from 'lucide-react'
 import type { Lesson, Selection, Unit } from '@/types/curriculum'
 import { cn, pluralize } from '@/lib/utils'
-import { BOSS_ICON, CHAPTER_ICON, LESSON_ICON, unitIcon } from '@/lib/icons'
 import { useLessonMap, useStudio } from '@/state/store'
 import TreeView, { TreeFolder, TreeItem } from '@/components/ui/tree-view/TreeView'
 import { IconButton } from '@/components/ui/Button'
@@ -86,34 +85,6 @@ function Count({ value }: { value: number }) {
   )
 }
 
-/**
- * The lesson's authored emoji is the most useful glyph here — it is real
- * curriculum content and tells rows apart. FileText is the structural
- * fallback, and a boss lesson always wins.
- */
-function LessonGlyph({
-  lesson,
-  selected,
-}: {
-  lesson: Lesson | undefined
-  selected: boolean
-}) {
-  if (lesson?.isBoss) return <BOSS_ICON size={13} className="shrink-0 text-boss" />
-  if (lesson?.icon) {
-    return (
-      <span className="w-[13px] shrink-0 text-center text-[12px] leading-none">
-        {lesson.icon}
-      </span>
-    )
-  }
-  return (
-    <LESSON_ICON
-      size={13}
-      className={cn('shrink-0', selected ? 'text-accent' : 'text-ink-faint')}
-    />
-  )
-}
-
 /* ------------------------------------------------------------------ *
  * Lesson row
  * ------------------------------------------------------------------ */
@@ -149,7 +120,6 @@ function LessonRow({
         danger={!lesson}
         title={lesson ? 'Double-click to rename' : undefined}
         label={lesson ? lesson.title : `Missing lesson: ${lessonId}`}
-        icon={<LessonGlyph lesson={lesson} selected={selected} />}
         leading={
           <DragHandle
             label={`Reorder ${lesson?.title ?? lessonId}`}
@@ -236,7 +206,6 @@ function UnitBlock({
     data: dropzone,
   })
 
-  const Icon = unitIcon(unit.iconKey)
   const selected = isSelected(selection, { kind: 'unit', unitId: unit.id })
 
   return (
@@ -251,12 +220,6 @@ function UnitBlock({
         title="Double-click to rename"
         label={unit.title || 'Untitled unit'}
         danger={!unit.title}
-        icon={
-          <Icon
-            size={13}
-            className={cn('shrink-0', unit.isBoss ? 'text-boss' : 'text-unit')}
-          />
-        }
         leading={
           <DragHandle
             label={`Reorder ${unit.title}`}
@@ -483,7 +446,6 @@ export function CurriculumTree() {
               chapterSelected ? 'bg-accent-soft' : 'hover:bg-edge-soft',
             )}
           >
-            <CHAPTER_ICON size={14} className="shrink-0 text-chapter" />
             <span className="min-w-0 flex-1">
               <span className="block truncate text-[13px] font-semibold text-ink">
                 {curriculum.chapter.title || 'Untitled chapter'}
@@ -558,7 +520,6 @@ export function CurriculumTree() {
                     selected={selected}
                     muted={!selected}
                     label={lesson.title}
-                    icon={<LessonGlyph lesson={lesson} selected={selected} />}
                     trailing={<Count value={lesson.activities.length} />}
                     onSelect={() =>
                       dispatch({
